@@ -235,5 +235,29 @@ finally:
     )
 
 
+@pytest.mark.parametrize(
+    "env_value,expected",
+    [(None, True), ("1", True), ("true", True), ("0", False), ("False", False)],
+)
+def test_add_port_to_grpc_server_require_client_auth(monkeypatch, env_value, expected):
+    from unittest import mock
+
+    from ray._common import tls_utils
+
+    monkeypatch.setenv("RAY_USE_TLS", "1")
+    if env_value is None:
+        monkeypatch.delenv("RAY_TLS_REQUIRE_CLIENT_AUTH", raising=False)
+    else:
+        monkeypatch.setenv("RAY_TLS_REQUIRE_CLIENT_AUTH", env_value)
+
+    server = mock.Mock()
+    with mock.patch.object(
+        tls_utils, "load_certs_from_env", return_value=(b"cert", b"key", b"ca")
+    ), mock.patch("grpc.ssl_server_credentials") as creds:
+        tls_utils.add_port_to_grpc_server(server, "0.0.0.0:0")
+
+    assert creds.call_args.kwargs["require_client_auth"] is expected
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(["-sv", __file__]))

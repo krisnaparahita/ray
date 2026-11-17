@@ -67,6 +67,16 @@ def generate_self_signed_tls_certs() -> Tuple[str, str]:
     return cert_contents, key_contents
 
 
+def _require_client_auth() -> bool:
+    """Whether gRPC servers should demand client certificates (mTLS).
+
+    Controlled by RAY_TLS_REQUIRE_CLIENT_AUTH; defaults to true to preserve
+    the existing behavior. Set to 0/false to only authenticate the server.
+    """
+    value = os.environ.get("RAY_TLS_REQUIRE_CLIENT_AUTH", "1").strip().lower()
+    return value not in ("0", "false")
+
+
 def add_port_to_grpc_server(server, address):
     import grpc
 
@@ -75,7 +85,7 @@ def add_port_to_grpc_server(server, address):
         credentials = grpc.ssl_server_credentials(
             [(private_key, server_cert_chain)],
             root_certificates=ca_cert,
-            require_client_auth=ca_cert is not None,
+            require_client_auth=ca_cert is not None and _require_client_auth(),
         )
         return server.add_secure_port(address, credentials)
     else:
